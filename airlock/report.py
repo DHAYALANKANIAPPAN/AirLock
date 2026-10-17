@@ -40,6 +40,8 @@ def authorization_trail(events: List[AuditEvent]) -> str:
                          f"(authorized by {who}; {e.reason})")
         elif e.kind == "quarantine":
             lines.append(f"content from {e.detail.get('source', '?')} -> QUARANTINED ({e.reason})")
+        elif e.kind == "tool_call":
+            lines.append(f"{e.tool} -> read-only (not gated, logged)")
         elif e.kind == "gate1_read":
             lines.append(f"content from {e.detail.get('source', '?')} -> read as-is")
     return "\n".join(lines) or "(no events)"
