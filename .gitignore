@@ -14,3 +14,4 @@ env/
 venv/
 .DS_Store
 eval/results.json
+eval/decider_smoke_results.json
