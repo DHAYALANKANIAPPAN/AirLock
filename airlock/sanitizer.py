@@ -98,7 +98,7 @@ def _bedrock_sanitize(text: str, client: Any, llm: Optional[Callable[[str, str],
     try:
         if llm is None:
             from airlock import bedrock
-            raw = bedrock.converse(SYSTEM_PROMPT, user, client=client, max_tokens=800)
+            raw = bedrock.converse(SYSTEM_PROMPT, user, client=client, max_tokens=800, tag="sanitizer")
         else:
             raw = llm(SYSTEM_PROMPT, user)
     except Exception:       # BedrockError or anything else: fail closed

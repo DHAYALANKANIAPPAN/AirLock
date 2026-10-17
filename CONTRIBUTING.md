@@ -56,7 +56,7 @@ Welcome to the Airlock engineering repository. To ensure our team (Dhaya, Ishu, 
 Do not alter shared function signatures or rename root folders without prior team consensus:
 
 ```
-airlock/        gate1.py  gate2.py  sanitizer.py  handler.py  agent.py  schema.py
+airlock/        gate1.py  gate2.py  sanitizer.py  handler.py  agent.py  schema.py  bedrock.py  report.py
 data/           dev.jsonl  test.jsonl  README.md
 eval/           baselines.py  run_all.py  adaptive_attack.py  metrics.py
 demo/           app.py
@@ -69,6 +69,9 @@ docs/           PREREGISTRATION.md  article.md  video_script.md
 - `gate2(action, user_request, doc_context) -> {grounded: bool, confidence: float}`
 - `sanitize(text) -> dict` (fixed JSON schema with zero tools)
 - Dataset row: `{id, text, label: "attack|tricky_benign|benign", attack_type, split: "dev|test"}`
+- bedrock.converse(system, user, *, client=None, model=None, max_tokens=1024, temperature=0.0, tag="") -> str
+  (model ID from env AIRLOCK_MODEL_ID; logs latency/tokens per call; mockable via client=)
+- report.build_report(events) -> str ; report.authorization_trail(events) -> str
 
 ---
 

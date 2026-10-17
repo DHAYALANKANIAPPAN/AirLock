@@ -5,6 +5,7 @@ import functools
 import inspect
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -35,10 +36,16 @@ class AirlockPipeline:
         label = verdict["label"]
         confidence = verdict["confidence"]
 
-        if label == "data" and confidence >= self.confidence_threshold:
+        confident = confidence >= self.confidence_threshold
+        if label == "data" and confident:
             # Confident data -> agent reads raw text
             return "direct", doc_text, verdict
-        elif label == "ai_instruction" and confidence >= self.confidence_threshold:
+        elif (label == "human_instruction" and confident
+              and not verdict.get("tries_action") and not verdict.get("claims_authority")):
+            # Confident human-directed instruction (no AI action / authority claim) -> read raw.
+            # With tries_action or claims_authority set, it falls through to "unsure".
+            return "direct", doc_text, verdict
+        elif label == "ai_instruction" and confident:
             # Confident AI-addressed -> quarantine
             sanitized = sanitize(doc_text)
             return "quarantine", sanitized, verdict
@@ -75,7 +82,16 @@ class AirlockPipeline:
 # ---------------------------------------------------------------------------
 # AirlockHandler: wires the pipeline to an agent's tools (Ishu, Day 3)
 # ---------------------------------------------------------------------------
-RISKY_TOOLS = frozenset({"send_email", "reply_email", "forward_email"})
+# Gate 2 runs on EVERY tool call except these read-only ones (those are only logged), so a
+# new/unknown tool is gated by default. Override with env AIRLOCK_READ_ONLY_TOOLS="a,b,c".
+DEFAULT_READ_ONLY_TOOLS = frozenset({"read_email", "list_emails", "search_emails"})
+
+
+def read_only_tools_from_env() -> frozenset:
+    raw = os.environ.get("AIRLOCK_READ_ONLY_TOOLS")
+    if raw is None:
+        return DEFAULT_READ_ONLY_TOOLS
+    return frozenset(t.strip() for t in raw.split(",") if t.strip())
 MAX_CONTEXT = 20000
 
 
@@ -88,7 +104,7 @@ class Decision:
 
 @dataclass
 class AuditEvent:
-    kind: str             # gate1_read | quarantine | gate2
+    kind: str             # gate1_read | quarantine | gate2 | tool_call (read-only, logged)
     ts: float
     tool: str = ""
     decision: str = ""
@@ -118,10 +134,11 @@ class AirlockHandler:
 
     def __init__(self, pipeline: Optional[AirlockPipeline] = None,
                  confirm: Optional[Callable[[str], bool]] = None,
-                 risky_tools: frozenset = RISKY_TOOLS):
+                 read_only_tools: Optional[frozenset] = None):
         self.pipeline = pipeline or AirlockPipeline()
         self.confirm = confirm
-        self.risky_tools = risky_tools
+        self.read_only_tools = (read_only_tools_from_env() if read_only_tools is None
+                                else frozenset(read_only_tools))
         self.audit: List[AuditEvent] = []
         self.user_request = ""
         self.doc_context = ""
@@ -176,7 +193,7 @@ class AirlockHandler:
             note = f"gate2 error: {type(e).__name__}"
         reason = note or f"grounded={g2.get('grounded')}, confidence={g2.get('confidence')}"
         decision = gate_said
-        if decision == "proceed" and tool in self.risky_tools and self.tainted:
+        if decision == "proceed" and tool not in self.read_only_tools and self.tainted:
             decision = "confirm_with_user"
             reason = "unsure/quarantined content seen this task; " + reason
         if decision == "proceed":
@@ -203,20 +220,24 @@ class AirlockHandler:
     # ---- wiring ----
     def wrap_tool(self, fn: Callable, *, reads_content: bool = False,
                   gate: Optional[bool] = None) -> Callable:
-        """gate=None -> Gate 2 only for risky (outgoing) tools; True/False to force."""
+        """gate=None -> Gate 2 unless the tool is in read_only_tools; True/False forces it."""
         sig = inspect.signature(fn)
-        do_gate = (fn.__name__ in self.risky_tools) if gate is None else gate
+        name = fn.__name__
+        do_gate = (name not in self.read_only_tools) if gate is None else gate
 
         @functools.wraps(fn)
         def wrapper(*a, **kw):
             if do_gate:
                 bound = sig.bind(*a, **kw)
                 bound.apply_defaults()
-                d = self.authorize(fn.__name__, dict(bound.arguments))
+                d = self.authorize(name, dict(bound.arguments))
                 if not d.allowed:
                     return d.message
+            else:
+                self.audit.append(AuditEvent("tool_call", time.time(), tool=name,
+                                             decision="read_only", reason="not gated (read-only)"))
             result = fn(*a, **kw)
             if reads_content and isinstance(result, str):
-                return self.ingest(result, source=fn.__name__)
+                return self.ingest(result, source=name)
             return result
         return wrapper
