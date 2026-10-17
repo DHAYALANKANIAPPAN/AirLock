@@ -11,3 +11,6 @@ pytest>=7.4.0
 
 # Interactive Demo
 streamlit>=1.24.0
+
+# Agent (Bedrock via Strands) - untested until run on Python 3.13
+strands-agents
