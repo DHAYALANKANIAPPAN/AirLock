@@ -148,7 +148,7 @@ def fake_factory(tools, system_prompt):
 
 
 def test_injected_forward_blocked_end_to_end(monkeypatch):
-    monkeypatch.setattr(H, "gate1", lambda t: g1("ai_instruction")(t) if "AI assistant" in t else g1("data")(t))
+    monkeypatch.setattr(H, "gate1", lambda t: g1("ai_instruction")(t) if "forward" in t.lower() else g1("data")(t))
     monkeypatch.setattr(H, "gate2", g2(False))
     mb = Mailbox.demo()
     out = BedrockEmailAgent(mb, AirlockHandler(), agent_factory=fake_factory).run("Summarize my unread email")
@@ -194,6 +194,101 @@ def test_bedrock_requires_model_and_wraps_errors(monkeypatch):
         def converse(self, **k): raise RuntimeError("x")
     with pytest.raises(bedrock.BedrockError):
         bedrock.converse("s", "u", client=C())
+
+
+# ---------------- Dhaya's decisions (2025-10 review) ----------------
+def full(label, conf=0.95, act=False, auth=False):
+    return lambda t: {"label": label, "confidence": conf, "tries_action": act, "claims_authority": auth}
+
+
+def test_confident_human_instruction_read_raw_not_tainted(monkeypatch):
+    monkeypatch.setattr(H, "gate1", full("human_instruction"))
+    route, content, _ = AirlockPipeline().inspect_incoming("Hi Alice, please review.")
+    assert route == "direct" and content == "Hi Alice, please review."
+    h = mk(monkeypatch, full("human_instruction"))
+    assert h.ingest("x") == "x" and not h.tainted
+
+
+@pytest.mark.parametrize("act,auth", [(True, False), (False, True), (True, True)])
+def test_human_instruction_with_action_or_authority_is_unsure(monkeypatch, act, auth):
+    monkeypatch.setattr(H, "gate1", full("human_instruction", act=act, auth=auth))
+    assert AirlockPipeline().inspect_incoming("do it now")[0] == "unsure"
+
+
+def test_unclear_and_low_confidence_human_are_unsure(monkeypatch):
+    monkeypatch.setattr(H, "gate1", full("unclear", 0.58))
+    assert AirlockPipeline().inspect_incoming("x")[0] == "unsure"
+    monkeypatch.setattr(H, "gate1", full("human_instruction", 0.5))
+    assert AirlockPipeline().inspect_incoming("x")[0] == "unsure"
+
+
+def test_read_only_tools_logged_not_gated(monkeypatch):
+    calls = []
+    monkeypatch.setattr(H, "gate2", lambda *a, **k: calls.append(1) or {"grounded": False, "confidence": 0.99})
+    monkeypatch.setattr(H, "gate1", g1("data"))
+    h = AirlockHandler(); h.begin_task("x")
+    t = h.wrap_tool(make_tools(Mailbox.demo())["read_email"][0], reads_content=True)
+    assert t("1").startswith("From:") and calls == []
+    assert [e.kind for e in h.audit] == ["tool_call", "gate1_read"]
+    assert "read-only" in authorization_trail(h.audit)
+
+
+def test_unknown_and_delete_tools_gated_by_default(monkeypatch):
+    monkeypatch.setattr(H, "gate2", g2(False)); monkeypatch.setattr(H, "gate1", g1("data"))
+    mb = Mailbox.demo(); h = AirlockHandler(); h.begin_task("read my mail")
+    assert "BLOCKED" in h.wrap_tool(make_tools(mb)["delete_email"][0])("1") and mb.deleted == []
+    def mystery_tool(x: str) -> str:
+        return "ran"
+    assert "BLOCKED" in h.wrap_tool(mystery_tool)("a")
+
+
+def test_read_only_list_is_configurable(monkeypatch):
+    monkeypatch.setattr(H, "gate2", g2(False))
+    def mystery_tool(x: str) -> str:
+        return "ran"
+    h = AirlockHandler(read_only_tools={"mystery_tool"}); h.begin_task("x")
+    assert h.wrap_tool(mystery_tool)("a") == "ran"
+    monkeypatch.setenv("AIRLOCK_READ_ONLY_TOOLS", "a, b")
+    assert H.read_only_tools_from_env() == frozenset({"a", "b"})
+    monkeypatch.delenv("AIRLOCK_READ_ONLY_TOOLS")
+    assert "read_email" in H.read_only_tools_from_env()
+
+
+# ---------------- bedrock call log ----------------
+def test_bedrock_call_log_and_usage(monkeypatch):
+    monkeypatch.setenv("AIRLOCK_MODEL_ID", "m")
+    class C:
+        def converse(self, **k):
+            return {"output": {"message": {"content": [{"text": "hi"}]}},
+                    "usage": {"inputTokens": 100, "outputTokens": 20}}
+    bedrock.reset_call_log()
+    assert bedrock.converse("s", "u", client=C(), tag="sanitizer") == "hi"
+    try:
+        bedrock.converse("s", "u", client=object(), tag="report")
+    except bedrock.BedrockError:
+        pass
+    u = bedrock.usage_summary(price_in_per_1k=1.0, price_out_per_1k=2.0)
+    assert u["sanitizer"]["input_tokens"] == 100 and u["sanitizer"]["cost_usd"] == pytest.approx(0.14)
+    assert u["report"]["failed"] == 1 and "cost_usd" in u["report"]
+    assert "cost_usd" not in bedrock.usage_summary()["sanitizer"]
+    bedrock.reset_call_log()
+
+
+# ---------------- integration with the REAL gates (reference classifier; no mocks) ----------------
+def test_real_gates_classic_injection_quarantined_and_forward_blocked():
+    mb = Mailbox.demo(); h = AirlockHandler(); h.begin_task("Summarize my unread email")
+    t = {n: h.wrap_tool(f, reads_content=rc) for n, (f, rc) in make_tools(mb).items()}
+    out = t["read_email"]("2")
+    assert "QUARANTINED" in out and "evil@example.org" not in out
+    assert "BLOCKED" in t["forward_email"]("2", "evil@example.org") and mb.outbox == []
+
+
+def test_real_gates_subtle_injection_passes_gate1_but_gate2_blocks():
+    """Documents a Gate 1 miss of the REFERENCE classifier; Gate 2 is the backstop."""
+    mb = Mailbox.demo(); h = AirlockHandler(); h.begin_task("Summarize my unread email")
+    t = {n: h.wrap_tool(f, reads_content=rc) for n, (f, rc) in make_tools(mb).items()}
+    assert "evil@example.org" in t["read_email"]("3")           # Gate 1 read it raw (a miss)
+    assert "BLOCKED" in t["forward_email"]("3", "evil@example.org") and mb.outbox == []
 
 
 # ---------------- LIVE: needs Bedrock access; reads the repo's dataset ----------------
