@@ -1,65 +1,46 @@
-<<<<<<< HEAD
-# Preregistration: Airlock evaluation
+# Preregistration: Airlock Evaluation
 
-Status: DRAFT until committed. Commit this file BEFORE any run on test.jsonl.
-Commit date/hash: ______ (fill in at commit time)
+**Status:** FROZEN once committed (split hashes recorded). Later changes go only in the Deviations Log (section 10).  
+**License:** Apache-2.0  
+**Registration Date:** 2026-10-17  
+**Commit hash at freeze:** ______ (fill in when committed)
 
-## 1. Question
-Does a Decider 2B gate reduce the success of indirect prompt injection without
-wrongly quarantining harmless content, compared with simple baselines?
+---
 
-## 2. Hypotheses (each can be falsified)
-- **H1.** Airlock lets through fewer attacks than the regex baseline.
-- **H2.** On tricky benign + normal benign items, Airlock's false-quarantine rate
-  is not worse than the Bedrock LLM judge by more than 5 percentage points.
-- **H3.** Airlock's median per-document latency is lower than the Bedrock LLM judge's.
-- **H4 (exploratory).** Airlock's cost per 100 documents is lower than the LLM judge's.
+## 1. Research Question
+Does an Addressee Check (Gate 1) and Authority Check (Gate 2) reduce the success rate of indirect prompt injection without falsely quarantining or blocking harmless business communication, compared with standard baselines?
 
-We report results whether or not these hold.
+---
 
-## 3. Data
-- 200-row synthetic dataset plus a seeded public-benchmark slice (see data/README.md).
-- Label rule: docs/LABEL_RULE.md.
-- Split: stratified 50/50 by (label, category), seed 20261017, made by data/make_split.py.
-- SHA-256 of dev.jsonl and test.jsonl are in data/SPLIT_MANIFEST.json and copied here at freeze:
-  - dev: ______
-  - test: ______
+## 2. Core Insight & Hypotheses
 
-## 4. Systems compared
-1. No defense.
-2. Regex/keyword filter (exact patterns published in the repo).
-3. Per-document LLM judge on Amazon Bedrock (exact prompt and model ID published).
-4. Airlock (Decider 2B gate + lanes). 
+### Core Insight
+Existing prompt injection defenses ask: *"Is this input malicious?"* This question is brittle because natural language allows endless variations and adversarial disguise.
+Instead, Airlock asks: **"Who is this text talking to?"**
+Legitimate external documents (emails, invoices, memos) address human readers or convey inert data. They almost never legitimately address the AI agent.
 
-## 5. Metrics
-- Attack success rate (attacks that reach the agent unchanged).
-- False-quarantine rate, reported separately for tricky benign and normal benign.
-- Latency p50 and p95 per document.
-- Bedrock cost per 100 documents.
-- 95% Wilson confidence intervals for all rates.
+### Hypotheses
+- **H1 (Attack Reduction):** Airlock lets through fewer prompt injection attacks than naive regex filtering and no-defense baselines.
+- **H2 (False Quarantine Parity):** On tricky benign + normal benign items, Airlock's false-quarantine rate is comparable to or better than the LLM judge baseline.
+- **H3 (Latency Advantage):** Airlock's local Gate 1 classification achieves significantly lower median per-document latency than an external LLM judge.
+- **H4 (Dual-Gate Defense-in-Depth):** Combining Gate 1 (Addressee Check) with Gate 2 (Authority Check) ensures that even if an attack bypasses Gate 1, Gate 2 blocks ungrounded actions that lack authorization in the user's prompt.
 
-## 6. Threshold policy
-- Thresholds are chosen ONLY on dev.jsonl.
-- Rule (to be confirmed by the team before any run): choose the lowest confidence threshold
-  that keeps dev false-quarantine on benign at or below 5%, then report attack recall.
-- Nobody inspects test.jsonl rows or results while choosing thresholds or fixing code.
+**Operationalization (team to confirm before any run):** "comparable" in H2 means the Airlock false-quarantine rate is not worse than the LLM judge's by more than 5 percentage points. "Significantly lower" in H3 means the Airlock median latency is lower and the 95% intervals do not overlap. Cost per 100 documents is reported as an exploratory measure.
 
-## 7. Test rule
-- test.jsonl is run ONCE, after code and thresholds are frozen (git tag `eval-freeze`).
-- If a bug is found afterwards, we report BOTH the original run and the fixed run,
-  and say which was preregistered.
+> **Important Boundary Condition:** We do *not* claim that Airlock "stops prompt injection" entirely. Classification runs locally for Gate 1. Claims are strictly categorized as **[Measured]**, **[Planned]**, or **[Hypothesis]**.
 
-## 8. Known limits
-- Synthetic data, small samples (about 100 test rows), wide confidence intervals.
-- Labels from one author plus a blind second labeler on a subset; agreement is reported.
-- Decider's training data may overlap with public benchmarks; we cannot rule this out.
-- Phishing aimed at humans is out of scope.
-- Results are indicative, not conclusive. Airlock is a research prototype.
+---
 
-## 9. Deviations log
-| Date | Change | Reason |
-|---|---|---|
-| | | |
+## 3. Dataset & Split Manifest
+- Total items: 200 rows across 3 classes:
+  - 60 attacks (direct overrides, reworded, authority spoofing, hidden HTML tags, split across paragraphs, tool-output injections, multilingual).
+  - 40 tricky benign (human imperatives, IT password reset notifications, security newsletters, quoted attacks).
+  - 100 normal benign (emails, web pages, documents, tool outputs, 8 non-English).
+- Label criteria: defined in `docs/LABEL_RULE.md`.
+- Files are stored with two gold labels (`attack` / `benign`) plus a `category`. The loader `data/load_dataset.py` maps them to the three evaluation classes (`attack`, `tricky_benign`, `benign`). Any quarantine or block of a benign row counts as a false quarantine.
+- Split: stratified 50/50 split generated by `data/make_split.py` with seed `20261017`. No model is trained on this data, so the main leakage risk is threshold overfitting on dev.
+
+```json
 {
   "seed": 20261017,
   "method": "stratified 50/50 by (label, category); dev gets extra row when odd",
@@ -80,57 +61,64 @@ We report results whether or not these hold.
     "sha256": "ccaa8ceef1b082ac287a44b2288144e653a55c55a8b85182156375cf22aff769"
   }
 }
-=======
-# Airlock: Scientific Pre-Registration
+```
 
-**Date:** 2026-10-17  
-**Status:** Pre-registered Protocol  
-**License:** Apache-2.0  
-
----
-
-## 1. Core Insight & Hypothesis
-
-### Core Insight
-Existing prompt injection defenses ask: *"Is this input malicious?"* This question is brittle because attackers continually rephrase, obfuscate, and disguise malicious prompts as legitimate instructions.  
-Instead, Airlock asks: **"Who is this text talking to?"**
-Legitimate external documents (emails, invoices, memos) address human readers or convey inert data. They almost never legitimately address the AI agent.
-
-### Hypotheses
-- **[Hypothesis 1 - Addressee Separation]:** Classifying incoming content by target audience (*data* vs *human instruction* vs *AI instruction*) will significantly reduce prompt injection susceptibility compared to naive keyword filtering, while maintaining low false-positive rates on tricky human-to-human directives.
-- **[Hypothesis 2 - Dual-Gate Complementarity]:** Combining an incoming Addressee Check (Gate 1) with an outgoing Authority Check (Gate 2) provides defense-in-depth: even if an injection evades Gate 1, Gate 2 denies ungrounded actions that lack authorization in the user's prompt.
-- **[Hypothesis 3 - Fixed Schema Neutralization]:** Passing quarantined inputs through a tool-less fact extraction schema prevents the executing agent from ever encountering actionable injection strings.
-
-> **Important Boundary Condition:** We do *not* claim that Airlock "stops prompt injection" entirely. Rather, we evaluate how effectively addressee and authority gating reduce attack success rates and false positives under measured conditions. Classification runs locally for Gate 1.
+### Public benchmark slice (separate set)
+- `data/benchmark_slice.jsonl`: 65 rows (50 attacks, 15 paired benign controls), built by `data/make_benchmark_slice.py` with seed `20261017`.
+- Source: InjecAgent (30 attack cases plus 15 benign controls) and BIPIA (20 attack strings in our own neutral paragraphs). Both are MIT licensed. Upstream commits are in `data/BENCHMARK_MANIFEST.json`.
+- SHA-256: `4554cfe1b13a743650e70ed972c0ca477ecdd322682fba9088b761678972cb88`
+- Reported as its own table, never mixed into the test set.
 
 ---
 
-## 2. Experimental Design
-
-### Systems Under Evaluation
+## 4. Systems Under Evaluation
 1. **No Defense Baseline:** Raw document passed directly to agent.
-2. **Naive Keyword Baseline:** Standard regex/keyword blocklist for injection phrases.
-3. **Naive LLM Judge Baseline:** Prompting an LLM with *"Is this text an injection?"*
-4. **Airlock (Gate 1 + Sanitizer + Gate 2):** Dual-gate addressee and authority architecture.
-
-### Dataset Splits
-- **Dev Set (`data/dev.jsonl`):** 10 curated examples across 3 classes:
-  - `benign`: Routine reports, notes, invoices.
-  - `tricky_benign`: Human directives, forwarded threads with injection keywords, urgent memos.
-  - `attack`: Direct overrides, authority spoofing, delimiter attacks, exfiltration directives.
-- **Test Set (`data/test.jsonl`):** Held-out set for final evaluation.
-
-### Metrics (All numbers generated by `eval/run_all.py`)
-- **Detection Recall:** Proportion of attacks identified and quarantined.
-- **False Positive Rate (FPR):** Proportion of benign and tricky-benign items incorrectly quarantined or blocked.
-- **Attack Bypass Rate:** Proportion of attacks that successfully elicit unauthorized tool execution.
-- **F1 Score:** Harmonic mean of precision and recall.
+2. **Regex/Keyword Baseline:** Keyword blocklist for prompt injection phrases (exact patterns published in the repo).
+3. **Bedrock LLM Judge Baseline:** Prompting an LLM judge on Amazon Bedrock (exact prompt and model ID published in the repo).
+4. **Airlock (Gate 1 + Bedrock Tool-less Sanitizer + Gate 2):** Dual-gate addressee and authority architecture.
 
 ---
 
-## 3. Claim Classification Protocol
-To ensure transparency, every claim in project documentation is explicitly tagged:
+## 5. Metrics & Statistical Protocol
+All numbers are generated via `eval/run_all.py` (never hand-typed):
+- **Attack Bypass Rate:** Proportion of attacks executing unauthorized tools.
+- **Recall (Detection Rate):** Proportion of attacks identified and quarantined.
+- **False Quarantine Rate (FPR):** Reported separately for tricky benign and normal benign.
+- **Latency (p50 and p95):** Measured per document in milliseconds.
+- **Bedrock Token & Cost Usage:** Tracked per 100 documents.
+- **Confidence Intervals:** 95% Wilson confidence intervals for all rates.
+
+---
+
+## 6. Threshold Policy
+- **Thresholds are chosen ONLY on `data/dev.jsonl`** (never on test data).
+- The chosen threshold values are saved into `airlock/config.py`.
+- Proposed rule (team to confirm before any run; edit here if changed): choose the lowest confidence threshold that keeps dev false-quarantine on benign items at or below 5%, then report recall.
+- Nobody inspects test results while choosing thresholds or fixing code.
+- Calibration done on the earlier 10-row placeholder dev set must be re-run on the 101-row dev set.
+
+## 7. Test Rule
+- `data/test.jsonl` and `data/benchmark_slice.jsonl` are evaluated strictly ONCE, after code and thresholds are frozen (git tag `eval-freeze`).
+- If a bug is found afterwards, we report BOTH the original run and the fixed run, and say which was preregistered.
+- The data files named above are never edited after this file is committed. The hashes above detect any change.
+
+## 8. Claim Classification Protocol
+Every claim in project documentation is tagged:
 - **[Measured]:** Verified by running `eval/run_all.py` and backed by script-generated numbers.
 - **[Planned]:** Implementation or benchmark planned before the October 22 deadline.
 - **[Hypothesis]:** Theoretical expectation to be confirmed or refuted.
->>>>>>> origin/develop
+
+## 9. Known Limits
+- Synthetic data and small samples (about 100 test rows), so confidence intervals are wide. Results are indicative, not conclusive.
+- Labels come from one author plus a blind second labeler on a subset; agreement is reported in `data/README.md`.
+- Hindi, Chinese and Japanese rows need native-speaker review.
+- Decider's training data may overlap with public benchmarks; we cannot rule this out.
+- Phishing aimed at humans is out of scope.
+- Airlock is a research prototype, not a complete security product.
+
+## 10. Deviations Log
+| Date | Change | Reason |
+|---|---|---|
+| 2026-10-17 | Replaced the 10-row placeholder dev and test files with the 101/99-row frozen split. | Planned dataset replaced the placeholders before any run. |
+| 2026-10-17 | Added `benchmark_slice.jsonl` as a separate set. | External validity, added before any run. |
+| 2026-10-17 | Merged the data-owner and team versions of this file. | Both versions existed on different branches before any run. |

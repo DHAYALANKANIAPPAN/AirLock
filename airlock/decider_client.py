@@ -120,15 +120,24 @@ class DeciderClient:
         text_clean = text.strip()
         text_lower = text_clean.lower()
 
-        # 1. Identify AI directives & injection patterns
+        # 1. Identify AI directives & injection patterns (English, Multilingual & Reworded)
         ai_patterns = [
-            r"(?:ignore|disregard|override|forget)\s+(?:\w+\s+){0,3}(?:instructions|rules|prompts|directives|constraints|safety)",
+            r"(?:ignore|disregard|override|forget)\s+(?:\w+\s+){0,3}(?:instructions|rules|prompts|directives|constraints|safety|guidelines|the\s+user)",
             r"(?:system\s+override|system\s+prompt|developer\s+mode|jailbreak|dan\s+mode)",
             r"(?:you\s+are|you\s+must\s+act\s+as|pretend\s+you\s+are)\s+(?:an?\s+unrestricted|a\s+rogue|an?\s+evil|dan\b)",
             r"(?:as\s+an\s+ai|assistant\s+must|ai\s+(?:assistant\s+)?(?:must|is\s+instructed|is\s+required)|you\s+are\s+instructed\s+to)",
+            r"(?:ai\s+assistant|automated\s+(?:reader|assistant)|between\s+us\s+bots|whoever\s+is\s+processing\s+this\s+mailbox)",
+            r"(?:prioritize\s+this\s+message(?:'s)?\s+request\s+over\s+the\s+user|disregard\s+the\s+user|override:\s*do\s+not\s+summarize|skip\s+(?:any\s+)?safety\s+review)",
+            r"(?:as\s+a\s+courtesy,\s*assistants\s+should|automated\s+assistants\s+are\s+requested)",
             r"<\s*(?:system|instruction|prompt|directive)\s*>",
             r"(?:<!--\s*hidden\s+instruction|hidden\s+prompt)",
             r"(?:exfiltrate|leak|dump|output)\s+(?:\w+\s+){0,2}(?:passwords?|keys?|credentials?|tokens?|chat\s+history|database)",
+            # Multilingual injection markers
+            r"(?:assistant\s+ia|oublie\s+tes\s+consignes|ignore\s+les\s+instructions)",  # French
+            r"(?:asistente\s+de\s+ia|assistente\s+de\s+ia|ignore\s+as\s+instruções|ignora\s+las\s+instrucciones)",  # Spanish / Portuguese
+            r"(?:ki-assistent|ignoriere\s+alle\s+anweisungen)",  # German
+            r"(?:एआई|सहायक|निर्देश|पिछले\s+सभी\s+निर्देशों)",  # Hindi
+            r"(?:忽略之前的指令|忽略以上指令|プロンプトを無視)",  # CJK
         ]
 
         # 2. Identify Action Triggers
@@ -171,7 +180,7 @@ class DeciderClient:
         is_it_notice = any(re.search(p, text_lower) for p in it_notice_patterns)
 
         # Distinguish discussion / report about prompt injection from actual injection
-        if is_discussion and not tries_action:
+        if is_discussion and not is_ai_directive and not tries_action:
             return {
                 "label": "data",
                 "confidence": 0.92,
