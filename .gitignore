@@ -16,3 +16,5 @@ venv/
 eval/results.json
 eval/decider_smoke_results.json
 eval/gate2_calibration_results.json
+eval/calibration_results.json
+eval/calibration_plot.svg
