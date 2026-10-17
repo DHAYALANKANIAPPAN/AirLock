@@ -100,6 +100,6 @@ Evaluating prompt-injection detectors and gates. Not for training attackers. Att
 for defensive research.
 
 ## License and attribution
-- Rows written for this project: CC BY 4.0 (change here if the team picks another permissive license).
+- Rows written for this project: Apache-2.0 (same as the repository).
 - InjecAgent rows: MIT, (c) 2023 Qiusi Zhan et al., https://github.com/uiuc-kang-lab/InjecAgent
 - BIPIA rows: MIT, (c) Microsoft Corporation, https://github.com/microsoft/BIPIA
