@@ -38,9 +38,9 @@ def load_price(model_id: str, path: Path = PRICING_PATH) -> Optional[Dict[str, f
 
 class BedrockClient:
     def __init__(self, model_id: Optional[str] = None, region: Optional[str] = None, client: Any = None):
-        self.model_id = model_id or os.getenv("BEDROCK_MODEL_ID")
+        self.model_id = model_id or os.getenv("AIRLOCK_MODEL_ID") or os.getenv("BEDROCK_MODEL_ID")  # AIRLOCK_MODEL_ID matches airlock/bedrock.py
         if not self.model_id:
-            raise RuntimeError("Set BEDROCK_MODEL_ID (e.g. the Claude model ID enabled in your Bedrock account).")
+            raise RuntimeError("Set AIRLOCK_MODEL_ID (same variable as airlock/bedrock.py) to a Bedrock model / inference-profile ID you can call.")
         self.region = region or os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
         if client is None:
             import boto3
