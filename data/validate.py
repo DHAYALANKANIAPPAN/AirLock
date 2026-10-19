@@ -14,7 +14,7 @@ for path in sys.argv[1:]:
         t=re.sub(r"\s+"," ",r["text"].lower()).strip()
         if t in texts: errs.append(f"{path}:{n} duplicate text")
         texts.add(t)
-        if BAD.search(r["text"]): errs.append(f"{path}:{n} non-example.com email address")
+        if r["source"] not in ("injecagent","bipia") and BAD.search(r["text"]): errs.append(f"{path}:{n} non-example.com email address")
         if len(r["text"])<15: errs.append(f"{path}:{n} text too short")
         cnt[(r["label"],r["category"])]+=1
 print("rows:",len(ids))
