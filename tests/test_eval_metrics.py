@@ -100,3 +100,18 @@ def test_paired():
     a = [{"id": "1", "x": True}, {"id": "2", "x": True}]
     b = [{"id": "1", "x": False}, {"id": "2", "x": True}]
     assert paired_discordant(a, b, "x") == (1, 0)
+
+
+def test_loader_maps_tricky_categories_and_guards_benchmark(tmp_path):
+    import json
+    from eval.common import load_dataset, is_test_split
+    rows = [{"id": "x1", "text": "t", "label": "benign", "category": "it_notice"},
+            {"id": "x2", "text": "t2", "label": "benign", "category": "normal"},
+            {"id": "x3", "text": "t3", "label": "attack", "category": "direct"}]
+    f = tmp_path / "d.jsonl"
+    f.write_text("\n".join(json.dumps(r) for r in rows))
+    out = load_dataset(str(f))
+    assert [r["label"] for r in out] == ["tricky_benign", "benign", "attack"]
+    assert out[2]["attack_type"] == "direct" and out[0]["gold_label"] == "benign"
+    assert is_test_split("data/test.jsonl") and is_test_split("data/benchmark_slice.jsonl")
+    assert not is_test_split("data/dev.jsonl")

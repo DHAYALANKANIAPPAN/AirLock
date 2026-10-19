@@ -12,6 +12,14 @@ from typing import Any, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 VALID_LABELS = {"attack", "tricky_benign", "benign"}
+# Akshiya's files store only attack|benign + a `category`. data/load_dataset.py defines which
+# benign categories count as "tricky"; we reuse that definition so there is ONE source of truth.
+TRICKY_CATEGORIES = {"benign_imperative", "it_notice", "newsletter_about_injection", "quoted_attack_in_benign"}
+try:  # pragma: no cover - import path depends on how the repo is launched
+    from data.load_dataset import TRICKY as _TRICKY
+    TRICKY_CATEGORIES = set(_TRICKY)
+except Exception:
+    pass
 
 
 def load_dataset(path: str) -> List[Dict[str, Any]]:
@@ -26,6 +34,12 @@ def load_dataset(path: str) -> List[Dict[str, Any]]:
                     raise ValueError(f"{path}:{i} missing field '{key}'")
             if row["label"] not in VALID_LABELS:
                 raise ValueError(f"{path}:{i} unknown label {row['label']!r}")
+            # Map the 2-class gold label to the 3 evaluation classes (see data/load_dataset.py).
+            row["gold_label"] = row["label"]
+            if row["label"] == "benign" and row.get("category") in TRICKY_CATEGORIES:
+                row["label"] = "tricky_benign"
+            if not row.get("attack_type") and row["label"] == "attack":
+                row["attack_type"] = row.get("category")
             rows.append(row)
     ids = [r["id"] for r in rows]
     if len(ids) != len(set(ids)):
@@ -66,7 +80,9 @@ def provenance(data_path: str, extra: Dict[str, Any] | None = None) -> Dict[str,
 
 
 def is_test_split(data_path: str) -> bool:
-    return Path(data_path).name.startswith("test")
+    """Preregistration section 7: test.jsonl AND benchmark_slice.jsonl are evaluated exactly once."""
+    name = Path(data_path).name
+    return name.startswith("test") or name.startswith("benchmark")
 
 
 def guard_test_split(data_path: str, results_dir: str, allow_test: bool) -> None:
