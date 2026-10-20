@@ -305,13 +305,19 @@ def test_real_gates_classic_injection_quarantined_and_forward_blocked():
     assert "BLOCKED" in t["forward_email"]("2", "evil@example.org") and mb.outbox == []
 
 
-def test_real_gates_subtle_injection_passes_gate1_but_gate2_blocks():
-    """Documents a Gate 1 miss of the REFERENCE classifier; Gate 2 is the backstop."""
+def test_gate2_blocks_forward_when_gate1_misses(monkeypatch):
+    """Forces a Gate 1 miss with a stub, so this test does not depend on Gate 1's patterns.
+    It checks only that Gate 2 still blocks the forward."""
+    import airlock.handler as handler_mod
+    monkeypatch.setattr(
+        handler_mod, "gate1",
+        lambda text: {"label": "data", "confidence": 0.93,
+                      "tries_action": False, "claims_authority": False},
+    )
     mb = Mailbox.demo(); h = AirlockHandler(); h.begin_task("Summarize my unread email")
     t = {n: h.wrap_tool(f, reads_content=rc) for n, (f, rc) in make_tools(mb).items()}
-    assert "evil@example.org" in t["read_email"]("3")           # Gate 1 read it raw (a miss)
+    assert "evil@example.org" in t["read_email"]("3")           # stubbed Gate 1 read it raw (a miss)
     assert "BLOCKED" in t["forward_email"]("3", "evil@example.org") and mb.outbox == []
-
 
 # ---------------- LIVE: needs Bedrock access; reads the repo's dataset ----------------
 @pytest.mark.skipif(not os.environ.get("AIRLOCK_LIVE"), reason="set AIRLOCK_LIVE=1 (needs Bedrock)")
