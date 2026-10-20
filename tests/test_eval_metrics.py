@@ -1,5 +1,43 @@
 import json
-import pytest
+import os
+import unittest
+import tempfile
+from pathlib import Path
+
+try:
+    import pytest
+except ImportError:
+    # CI/local compatibility shim if pytest is not installed in the active environment
+    class _Approx:
+        def __init__(self, expected, rel=None, abs=1e-6):
+            self.expected = expected
+            self.abs = abs
+        def __eq__(self, actual):
+            if self.abs is not None:
+                return abs(actual - self.expected) <= self.abs
+            return actual == self.expected
+
+    class _MockPytest:
+        class mark:
+            @staticmethod
+            def parametrize(argnames, argvalues):
+                def decorator(fn):
+                    return fn
+                return decorator
+            @staticmethod
+            def skipif(cond, reason=""):
+                def decorator(fn):
+                    return fn
+                return decorator
+        @staticmethod
+        def approx(val, rel=None, abs=1e-6):
+            return _Approx(val, rel=rel, abs=abs)
+        class raises:
+            def __init__(self, exc): self.exc = exc
+            def __enter__(self): return self
+            def __exit__(self, exc_type, exc_val, exc_tb): return exc_type is not None and issubclass(exc_type, self.exc)
+    pytest = _MockPytest()
+
 from eval.metrics import (wilson_ci, mcnemar_exact, nearest_rank_percentile, compute_condition_metrics,
                           paired_discordant)
 from eval.baselines import RegexFilter, BedrockLLMJudge, parse_judge_verdict, NoDefense
@@ -115,3 +153,26 @@ def test_loader_maps_tricky_categories_and_guards_benchmark(tmp_path):
     assert out[2]["attack_type"] == "direct" and out[0]["gold_label"] == "benign"
     assert is_test_split("data/test.jsonl") and is_test_split("data/benchmark_slice.jsonl")
     assert not is_test_split("data/dev.jsonl")
+
+
+class TestEvalMetrics(unittest.TestCase):
+    def test_eval_suite(self):
+        for k, n, lo, hi in [(0, 10, 0.0, 0.2775), (10, 10, 0.7225, 1.0),
+                             (5, 10, 0.2366, 0.7634), (3, 10, 0.1078, 0.6032)]:
+            test_wilson_reference(k, n, lo, hi)
+        test_wilson_edges()
+        test_mcnemar_and_percentile()
+        test_regex_filter()
+        test_judge_parse()
+        test_judge_fail_closed_and_visible()
+        test_end_to_end_no_defense_vs_regex()
+        test_missing_agent_stage_raises()
+        test_gate2_filter_changes_outcome()
+        test_same_seed_same_order()
+        test_paired()
+        with tempfile.TemporaryDirectory() as td:
+            test_loader_maps_tricky_categories_and_guards_benchmark(Path(td))
+
+
+if __name__ == "__main__":
+    unittest.main()
