@@ -15,6 +15,27 @@ from typing import Any, Dict, List, Optional
 PRICING_PATH = Path(__file__).resolve().parent / "pricing.json"
 
 
+def _load_env_file() -> None:
+    """Auto-load variables from .env if present in workspace root or cwd."""
+    for cand in (Path(".env"), Path(__file__).resolve().parent.parent / ".env"):
+        if cand.is_file():
+            try:
+                for line in cand.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip().strip('"').strip("'")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+                break
+            except Exception:
+                pass
+
+
+_load_env_file()
+
+
+
 @dataclass
 class LLMResponse:
     text: str
