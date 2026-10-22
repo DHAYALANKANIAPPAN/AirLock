@@ -25,16 +25,23 @@ logger = logging.getLogger("airlock.decider")
 class DeciderClient:
     """Interacts with local Decider 2B server or local probe pipeline."""
 
-    def __init__(self, endpoint_url: Optional[str] = None, timeout: float = 2.0):
-        self.endpoint_url = endpoint_url or os.getenv("DECIDER_ENDPOINT_URL", "http://localhost:8000/v1/decide")
+    def __init__(self, endpoint_url: Optional[str] = None, timeout: float = 0.5):
+        self.endpoint_url = endpoint_url or os.getenv("DECIDER_ENDPOINT_URL")
         self.timeout = timeout
         self.is_connected = False
+        self._server_checked = False
+        self._server_available = False
 
     def query_probes_live(self, text: str) -> Optional[Gate1Result]:
         """Send 3 discrete decision probes to the local Decider 2B endpoint in a single batch.
 
         Status: Untested until run with live model daemon.
         """
+        if not self.endpoint_url:
+            return None
+        if self._server_checked and not self._server_available:
+            return None
+
         payload = {
             "context": text,
             "probes": [
@@ -65,11 +72,14 @@ class DeciderClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
-                    # Parse distribution
                     self.is_connected = True
+                    self._server_available = True
+                    self._server_checked = True
                     return self._parse_decider_response(data)
         except Exception:
             self.is_connected = False
+            self._server_available = False
+            self._server_checked = True
             return None
 
     def _parse_decider_response(self, response: Dict[str, Any]) -> Gate1Result:
