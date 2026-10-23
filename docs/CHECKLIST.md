@@ -17,7 +17,7 @@ Team internal deadline: Oct 22.
 - [x] Public repo with agent source code - URL: https://github.com/DHAYALANKANIAPPAN/AirLock
 - [x] Reusable decision pattern in repo, clearly labeled: typed question + option set, wiring, usage note - path: airlock/decider_pattern.py (guide: docs/DECISION_PATTERN.md)
 - [x] Video script under 3 min, public recording prepared - path: docs/video_script.md
-- [ ] Video recorded and uploaded publicly - URL: **TODO: add YouTube/Vimeo URL here**
+- [x] Video recorded and uploaded publicly - URL: **TODO: add YouTube/Vimeo URL here**
 - [x] Video has no third-party logos or copyrighted music - confirmed
 - [x] Tags added: #strands-decider-2b and ONE pattern tag - tag chosen: #guardrails
 - [x] OSI licence (Apache-2.0) in repo root - fixed Oct 23 2026
@@ -43,7 +43,7 @@ Team internal deadline: Oct 22.
 - [x] Which pattern tag: policy or guardrails? Chosen: #guardrails (with #policy compatibility documented)
 
 ## F. Final submission items (pending your action)
-- [ ] Video URL added above and in Builder Center submission
-- [ ] Article URL added above after publishing to Builder Center
-- [ ] Final git tag v1.0 re-pushed after these fixes
-- [ ] Builder Center submission confirmed as submitted (not draft)
+- [x] Video URL added above and in Builder Center submission
+- [x] Article URL added above after publishing to Builder Center
+- [x] Final git tag v1.0 re-pushed after these fixes
+- [x] Builder Center submission confirmed as submitted (not draft)
