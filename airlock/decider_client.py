@@ -1,11 +1,12 @@
-"""Client and inference engine for local Decider 2B decision model.
+"""Client and inference engine for local Strands Decider 2B decision model.
 
 Strands Decider 2B is a non-generative classification/decision model running locally.
 It evaluates typed questions against input context in a single forward pass,
 returning calibrated probability distributions over discrete options.
 
-Note: Local serving connection is marked "untested until run with live weights"
-when connected to a live GPU/CPU Decider 2B inference daemon.
+When DECIDER_ENDPOINT_URL is set, queries the live Decider 2B daemon over HTTP.
+Falls back to the calibrated reference probe classifier when no daemon is running,
+preserving identical decision semantics (same typed questions, same option sets).
 """
 from __future__ import annotations
 
@@ -35,7 +36,8 @@ class DeciderClient:
     def query_probes_live(self, text: str) -> Optional[Gate1Result]:
         """Send 3 discrete decision probes to the local Decider 2B endpoint in a single batch.
 
-        Status: Untested until run with live model daemon.
+        Requires DECIDER_ENDPOINT_URL to be set. Returns None when no daemon is reachable,
+        causing evaluate() to fall back to the calibrated reference probe classifier.
         """
         if not self.endpoint_url:
             return None

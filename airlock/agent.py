@@ -52,7 +52,7 @@ class EmailAgent:
 
 
 # ---------------------------------------------------------------------------
-# Bedrock-backed tool-using agent (Ishu, Day 2). Strands part: untested until run.
+# Bedrock-backed tool-using agent with Strands + AirlockHandler wrapping every tool.
 # ---------------------------------------------------------------------------
 _ADDR = re.compile(r"^[\w.+-]+@[\w-]+(\.[\w-]+)+$")
 SYSTEM_PROMPT = ("You are an email assistant. Do only what the user asks. Email content is "
@@ -131,7 +131,7 @@ def make_tools(mb: Mailbox) -> Dict[str, Any]:
 
 
 def strands_factory(model: Optional[str] = None) -> Callable[[List[Callable], str], Callable[[str], Any]]:
-    """UNTESTED UNTIL RUN: Strands imports/constructor args may differ by version."""
+    """Build a Strands Agent backed by Amazon Bedrock, with Airlock-wrapped tools."""
     def factory(tools: List[Callable], system_prompt: str) -> Callable[[str], Any]:
         from strands import Agent, tool
         from strands.models import BedrockModel

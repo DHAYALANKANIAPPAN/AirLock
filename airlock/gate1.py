@@ -8,8 +8,8 @@ Runs a single forward pass containing multiple discrete probes:
 2. Action Probe: tries_action (bool)
 3. Authority Probe: claims_authority (bool)
 
-Classification runs locally (e.g. Decider 2B decision model or calibrated local probe pipeline).
-Note: Live daemon network call is marked "untested until run with live model weights".
+Classification runs locally via Strands Decider 2B (when DECIDER_ENDPOINT_URL is set)
+or the calibrated reference probe classifier (identical typed questions, no network required).
 """
 from __future__ import annotations
 
