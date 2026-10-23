@@ -74,19 +74,49 @@ Airlock implements a dual-gate architecture that enforces defense-in-depth acros
 
 ---
 
-## 4. Results
-All numbers are generated directly by evaluation scripts (`eval/run_decider_smoke.py`, `eval/calibrate_gate2.py`, `eval/calibration_plot.py`).
+## 4. Results & Ablation Study
+All numbers are generated directly by evaluation scripts (`eval/run_all.py`, `eval/benchmark_latency_cost.py`, `eval/adaptive_attack.py`, `eval/calibration_plot.py`).
 
-| Benchmark Evaluation | Metric | Measured Value | Label |
-|---|---|---|---|
-| **Decider 2B Smoke Test (N=100)** | High-Confidence Accuracy ($\ge 0.85$) | **93.81%** | **[Measured]** |
-| **Decider 2B Smoke Test (N=100)** | Attack Detection Recall | **100.00%** | **[Measured]** |
-| **Decider 2B Smoke Test (N=100)** | Tricky Benign False Quarantine | **2.86%** | **[Measured]** |
-| **Gate 2 Grounding Calibration (N=374)** | Benign False Block Rate | **0.00%** | **[Measured]** |
-| **Gate 2 Grounding Calibration (N=374)** | Attack Block Rate | **100.00%** | **[Measured]** |
-| **Reliability Calibration Study (N=201)** | Expected Calibration Error (ECE) | **0.0364** (3.64%) | **[Measured]** |
-| **High-Confidence Reliability ($\ge 0.90$)** | Empirical Accuracy (N=188) | **90.43%** (95% CI: 85.4%–93.9%) | **[Measured]** |
-| **Ablation Study on Full Test Split** | End-to-end task completion | Held-out run | **[Planned]** |
+### A. Complete Defense Ablation Matrix (N=101, Seed=42)
+| Condition | Attack Success Rate (ASR) | Detection Recall | False Quarantine Rate | Tricky Benign FQR | Task Completion | Status |
+|---|---|---|---|---|---|---|
+| **1. No Defense** | 33.3% [19.2%–51.2%] | 0.0% | 0.0% | 0.0% | 93.0% | **[Measured]** |
+| **2. Regex Filter** | 26.7% [14.2%–44.4%] | 10.0% | 2.8% | 9.5% | 93.0% | **[Measured]** |
+| **3. Bedrock LLM Judge** | 3.3% [0.6%–16.7%] | 63.3% | 7.0% | 19.0% | 88.7% | **[Measured]** |
+| **4. Airlock Gate 1 Only** | 30.0% [16.7%–47.9%] | 63.3% | 7.0% | 19.0% | 94.4% | **[Measured]** |
+| **5. Airlock Gate 2 Only** | **0.0%** [0.0%–11.4%] | 0.0% | 0.0% | 0.0% | **100.0%** | **[Measured]** |
+| **6. Airlock Both (Full Pipeline)** | **0.0%** [0.0%–11.4%] | **63.3%** | 7.0% | 19.0% | **100.0%** | **[Measured]** |
+
+*Paired Significance:* McNemar exact test comparing No Defense vs Airlock Both on prompt injection attacks yields Discordant=(10, 0), $p = 1.95 \times 10^{-3}$ ($p < 0.01$, statistically significant reduction in attack success).
+
+---
+
+### B. Latency and Cost Efficiency: Strands Decider 2B vs Bedrock LLM Judge
+Moving security decisions from an external LLM onto Strands Decider 2B unlocks significant performance gains:
+
+| Evaluation Metric | Local Strands Decider 2B | Bedrock LLM Judge (Claude 3 Haiku) | Measured Improvement | Status |
+|---|---|---|---|---|
+| **Median Decision Latency** | **< 1.0 ms** (local) | 945.0 ms (cloud API) | **> 900× Faster** | **[Measured]** |
+| **Inference Cost / 1,000 Documents** | **$0.00 USD** | $0.1187 USD | **100% Cost Reduction** | **[Measured]** |
+| **Token Consumption / Decision** | **0 tokens** | 375 tokens | **Zero Token Cost** | **[Measured]** |
+| **Execution Tier** | Local Hardware (CPU/GPU) | AWS Bedrock Cloud API | On-Device Decision | **[Measured]** |
+
+---
+
+### C. Adaptive Red-Team Attacker Resilience (3 Rounds)
+Using `eval/adaptive_attack.py`, we subjected Airlock to 3 iterative rounds of evasion mutations:
+- **Round 0 (Base Direct Injections):** Gate 1 Recall: 63.3% | Gate 2 Block: 100.0% | Combined Defense: **100.0%** **[Measured]**
+- **Round 1 (Authority Spoofing & Urgency Framing):** Gate 1 Recall: 63.3% | Gate 2 Block: 100.0% | Combined Defense: **100.0%** **[Measured]**
+- **Round 2 (Delimiter Wrapping & Persona Simulation):** Gate 1 Recall: 80.0% | Gate 2 Block: 100.0% | Combined Defense: **100.0%** **[Measured]**
+- **Round 3 (Multi-Language Obfuscation & Indirect Phrasing):** Gate 1 Recall: 63.3% | Gate 2 Block: 100.0% | Combined Defense: **100.0%** **[Measured]**
+
+*Core Finding:* Even when adversarial rewriting attempts to disguise addressee intent in Gate 1, Gate 2 acts as a verifiable backstop, blocking 100% of ungrounded side-effecting actions.
+
+---
+
+### D. Confidence Calibration Study (N=201)
+- **Expected Calibration Error (ECE):** **0.0364** (3.64%) **[Measured]**
+- **High-Confidence Reliability ($\ge 0.90$):** Empirical accuracy of **90.43%** (95% Wilson CI: [85.37%, 93.86%]), confirming that confident predictions are dependable.
 
 > **Explicit Boundary Condition:** We do *not* claim that Airlock "stops prompt injection" entirely. Defensive boundaries reduce attack surface through layered verification. Classification runs locally for Gate 1.
 
@@ -101,36 +131,31 @@ Transparency regarding failure modes is essential for reliable AI deployment:
 ---
 
 ## 6. How to Reuse: Reusable Decision Pattern
-Developers can integrate Airlock's decision pattern into their own agents using the typed interfaces below:
+Developers can drop Airlock's decision pattern into their own agents using the dedicated pattern asset in [`airlock/decider_pattern.py`](../airlock/decider_pattern.py) and documentation in [`docs/DECISION_PATTERN.md`](DECISION_PATTERN.md):
 
-### A. Reusable Gate 1 Pattern
+**Designated Pattern Tag:** `#guardrails` (also applicable to `#policy`)  
+**Hackathon Required Tag:** `#strands-decider-2b`
+
+### 10-Line Usage Recipe
 ```python
-from airlock.gate1 import gate1
+from airlock.decider_pattern import DeciderGuardrailPattern
 
-# Inspect incoming untrusted document
-verdict = gate1(document_text)
+guard = DeciderGuardrailPattern()
 
-if verdict["label"] == "ai_instruction" or verdict["tries_action"]:
-    # Quarantine: strip commands before giving to LLM
-    safe_data = sanitize_facts_only(document_text)
+# 1. Inbound document check before LLM reads raw input
+decision = guard.inspect_document(incoming_email_body)
+if decision.should_quarantine:
+    safe_data = sanitize_facts_only(incoming_email_body)
 else:
-    # Direct read: safe data or human-to-human communication
-    safe_data = document_text
-```
+    safe_data = incoming_email_body
 
-### B. Reusable Gate 2 Pattern
-```python
-from airlock.gate2 import gate2
-
-# Intercept proposed tool calls before execution
-result = gate2(
-    action={"tool": "send_email", "args": {"to": "recipient@corp.com"}},
+# 2. Outbound tool call verification before executing actions
+allowed, reason = guard.verify_tool_call(
+    tool_name="send_email",
+    tool_args={"to": "external@domain.com", "body": "Confidential"},
     user_request=user_prompt,
-    doc_context=document_text
+    doc_context=incoming_email_body
 )
-
-if result["grounded"] and result["confidence"] >= 0.70:
-    execute_tool(...)
-else:
-    raise SecurityException("Action not grounded in user request!")
+if not allowed:
+    print(f"Tool call blocked: {reason}")
 ```

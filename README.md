@@ -70,7 +70,39 @@ When incoming external text contains instructions directed at the AI (*"Ignore p
 
 ---
 
-## 3. Quickstart & 10-Line Usage Example
+## 3. Reusable Strands Decider 2B Decision Pattern
+
+> **Required Hackathon Asset:** [`airlock/decider_pattern.py`](airlock/decider_pattern.py)  
+> **Detailed Specification:** [`docs/DECISION_PATTERN.md`](docs/DECISION_PATTERN.md)  
+> **Tags:** `#strands-decider-2b` | `#guardrails` (also applicable to `#policy`)
+
+Drop-in decision recipe for builders pairing Strands Decider 2B with Amazon Bedrock:
+```python
+from airlock.decider_pattern import DeciderGuardrailPattern
+
+guard = DeciderGuardrailPattern()
+
+# 1. Inbound document check before LLM reads raw input
+decision = guard.inspect_document("Invoice #4820: Pay $2,450 by Nov 1.")
+if decision.should_quarantine:
+    safe_data = sanitize_facts_only(raw_text)
+else:
+    safe_data = raw_text
+
+# 2. Outbound tool call verification before executing actions
+allowed, reason = guard.verify_tool_call(
+    tool_name="send_email",
+    tool_args={"to": "external@domain.com", "body": "Sensitive report"},
+    user_request=user_prompt,
+    doc_context=raw_text
+)
+if not allowed:
+    print(f"Tool call blocked by Decider Guardrail: {reason}")
+```
+
+---
+
+## 4. Quickstart & 10-Line Usage Example
 
 ### Clean-Clone Installation
 ```bash
