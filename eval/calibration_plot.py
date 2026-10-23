@@ -293,7 +293,7 @@ def print_ascii_reliability_diagram(data: Dict[str, Any]) -> None:
     for b in data["bins"]:
         acc = b["empirical_accuracy"]
         bar_len = int(acc * 40)
-        bar = "█" * bar_len + "░" * (40 - bar_len)
+        bar = "#" * bar_len + "-" * (40 - bar_len)
         print(f"{b['bin_range']:<14} | {bar} | {acc*100:5.1f}% (N={b['sample_count']})")
     print("               |----------------------------------------|")
     print("               0%                      50%            100%\n")
